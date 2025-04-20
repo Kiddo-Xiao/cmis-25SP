@@ -1,0 +1,8 @@
+=== Comfort Score Log ===
+User Type: Adult
+Palm Size: 90.0 mm
+Grip Width: 22.22 mm → Grip Score: 1.00
+Bow Thickness: 6.99 mm → Thickness Score: 1.00
+Limb Stiffness: 0.83 → Stiffness Score: 1.00
+Bow Curvature: 0.38 → Curvature Score: 0.80
+Final Comfort Score: 98.0/100
