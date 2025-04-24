@@ -4,47 +4,53 @@ from scipy.optimize import minimize
 import os
 import time
 import random
+import math
+import Constants as co
 
 class BowArrowOptimizer:
     def __init__(self, model_path):
         self.model = trimesh.load(model_path)
-        self.original_model = self.model.copy()
         self.components = self.model.split()
         
+        if len(self.components) != 2:
+            raise ValueError("STL must contain exactly 2 components (Bow and Arrow)")
+        
+        self.original_model = self.model.copy()
+        
         # Default parameters of Bow
-        self.bow_thickness = 5.0       # mm
-        self.bow_curvature = 0.3       # ratio
-        self.limb_stiffness = 0.6      # ratio
-        self.grip_width = 25.0         # mm
+        self.bow_thickness = co.DEFAULT_BOW_THICKNESS       # mm
+        self.bow_curvature = co.DEFAULT_BOW_CURVATURE       # ratio
+        self.limb_stiffness = co.DEFAULT_LIMB_STIFFNESS      # ratio
+        self.grip_width = co.DEFAULT_GRIP_WIDTH         # mm
 
         # Default parameters of Arrow
-        self.arrow_length = 60.0       # mm
-        self.arrow_weight = 2.0        # g
-        self.tip_diameter = 8.0        # mm
-        self.tip_length = 5.0          # mm        
+        self.arrow_length = co.DEFAULT_ARROW_LENGTH       # mm
+        self.arrow_weight = co.DEFAULT_ARROW_WEIGHT        # g
+        self.tip_diameter = co.DEFAULT_ARROW_TIP_DIAMETER        # mm
+        self.tip_length = co.DEFAULT_ARROW_TIP_LENGTH          # mm        
         
         # User profiles with tailored parameters
         self.user_profiles = {
             'Child': {
-                'bow_thickness': 6.0,
+                'bow_thickness': 10.0,
                 'bow_curvature': 0.25,
                 'limb_stiffness': 0.4,
-                'grip_width': 30.0,
+                'grip_width': 25.0,
                 'arrow_length': 50.0,
                 'arrow_weight': 1.5,
                 'tip_diameter': 10.0,
                 'tip_length': 7.0,
-                'max_draw_force': 3.0,      # N
-                'max_launch_speed': 2.0,    # m/s
+                'max_draw_force': 4.0,      # N
+                'max_launch_speed': 2.5,    # m/s
                 'safety_factor': 1.5,
                 'speed_factor': 0.8,
                 'grip_size_factor': 1.2
             },
             'Adult': {
-                'bow_thickness': 5.0,
+                'bow_thickness': 8.0,
                 'bow_curvature': 0.3,
                 'limb_stiffness': 0.6,
-                'grip_width': 25.0,
+                'grip_width': 34.0,
                 'arrow_length': 60.0,
                 'arrow_weight': 2.0,
                 'tip_diameter': 8.0,
@@ -56,15 +62,15 @@ class BowArrowOptimizer:
                 'grip_size_factor': 1.0
             },
             'Professional': {
-                'bow_thickness': 4.5,
+                'bow_thickness': 6.0,
                 'bow_curvature': 0.35,
                 'limb_stiffness': 0.75,
-                'grip_width': 22.0,
+                'grip_width': 25.0,
                 'arrow_length': 70.0,
                 'arrow_weight': 2.5,
                 'tip_diameter': 6.0,
                 'tip_length': 4.0,
-                'max_draw_force': 7.0,      # N
+                'max_draw_force': 8.0,      # N
                 'max_launch_speed': 5.0,    # m/s
                 'safety_factor': 1.0,
                 'speed_factor': 1.2,
@@ -72,7 +78,7 @@ class BowArrowOptimizer:
             }
         }
         self.current_user = 'Adult' # Child, Adult, Professional
-        self.palm_size = 90.0 # mm (default adult palm size)
+        self.palm_size = co.DEFAULT_PALM_SIZE # mm (default adult palm size)
         self.preferred_speed = 'Medium' # Low, Medium, High
 
     def set_user_profile(self, profile_name, palm_size=None, preferred_speed=None):
@@ -108,7 +114,7 @@ class BowArrowOptimizer:
     def adjust_for_palm_size(self):
         """Adjust parameters based on user's palm size"""
         profile = self.user_profiles[self.current_user]
-        base_palm_size = 90.0  # Standard adult palm size in mm
+        base_palm_size = co.DEFAULT_PALM_SIZE  # Standard adult palm size in mm
         
         # Scale factor based on palm size
         scale_factor = self.palm_size / base_palm_size
@@ -137,7 +143,7 @@ class BowArrowOptimizer:
         curvature_score = 1.0
 
         # 1. Grip Heuristics (based on palm size)
-        palm_factor = self.palm_size / (90.0 if self.current_user != 'Child' else 70.0)
+        palm_factor = self.palm_size / (co.DEFAULT_PALM_SIZE if self.current_user != 'Child' else 70.0)
         grip_ratio = self.grip_width / (self.palm_size * 0.27)
         if grip_ratio > 1.2:
             grip_score = 0.7 if self.current_user == 'Child' else 0.9
@@ -221,7 +227,11 @@ class BowArrowOptimizer:
         self.grip_width = grip_width
 
         # Arrow's parameters must be calculated by bow's params to make them suitable!
-        arrow_length = self.calculate_optimal_arrow_length(bow_thickness, bow_curvature, grip_width)
+        # arrow_length = self.calculate_optimal_arrow_length(bow_thickness, bow_curvature, grip_width)
+        # Keep arrow length fixed to the existing self.arrow_len
+        # 
+        # gth (from STL)
+        arrow_length = self.arrow_length  # mm
         arrow_weight = self.calculate_optimal_arrow_weight(limb_stiffness, grip_width)
         tip_diameter = self.calculate_optimal_tip_diameter(limb_stiffness, grip_width)
         self.arrow_length = arrow_length
@@ -241,9 +251,9 @@ class BowArrowOptimizer:
                 component.vertices = np.array(original_component.vertices)
         
         # Calculate scaling and adjustment factors
-        thickness_factor = self.bow_thickness / 5.0
-        curvature_factor = self.bow_curvature
-        grip_scale = self.grip_width / 25.0
+        thickness_factor = self.bow_thickness / co.DEFAULT_BOW_THICKNESS
+        curvature_factor = self.bow_curvature / co.DEFAULT_BOW_CURVATURE
+        grip_scale = self.grip_width / co.DEFAULT_GRIP_WIDTH
         
         # Identify bow components (first component is bow body and second is arrow)
         bow_body_index = 0
@@ -293,10 +303,12 @@ class BowArrowOptimizer:
                 # Assuming second component is the arrow
                 if i == 1:
                     # Scale arrow length
-                    arrow_scale = self.arrow_length / 60.0  # Assuming default arrow is 60mm
+                    arrow_scale = self.arrow_length / co.DEFAULT_ARROW_LENGTH
                     # Find arrow axis (assume primarily along x-axis)
                     x_min, x_max = np.min(vertices[:, 0]), np.max(vertices[:, 0])
                     arrow_center_x = (x_min + x_max) / 2
+                    
+                    print(f"[Geometry Update] Arrow scaled to {self.arrow_length:.2f} mm (scale factor: {arrow_scale:.2f})")
                     
                     # Scale from center point
                     for v_idx, vertex in enumerate(vertices):
@@ -305,7 +317,7 @@ class BowArrowOptimizer:
                         
                     # Adjust tip diameter if this is arrow tip component
                     # (simplified approach - just apply uniform scaling to tip)
-                    tip_scale = self.tip_diameter / 8.0  # Assuming default tip is 8mm
+                    tip_scale = self.tip_diameter / co.DEFAULT_ARROW_TIP_DIAMETER
                     for v_idx, vertex in enumerate(vertices):
                         # Only scale y and z dimensions for tip
                         vertices[v_idx, 1] = (vertex[1] - y_center) * tip_scale + y_center
@@ -377,128 +389,64 @@ class BowArrowOptimizer:
             cost += safety_weight * 3.0 * (estimated_draw_force - max_draw_force)**2
         
         # 3. Size constraints based on palm size
-        grip_width_factor = (self.palm_size / 90.0) * user_profile['grip_size_factor']
+        grip_width_factor = (self.palm_size / co.DEFAULT_PALM_SIZE) * user_profile['grip_size_factor']
         ideal_grip_width = target_grip_width * grip_width_factor
         grip_deviation = abs(grip_width - ideal_grip_width)
         cost += 2.0 * grip_deviation
         
         return cost
 
-    # TODO: Need more precise calculation for speed
     def estimate_launch_speed(self, bow_thickness, bow_curvature, limb_stiffness, grip_width):
-        """Estimate arrow launch speed based on bow parameters"""
-        # Simple physics model: launch speed is proportional to:
-        # - limb stiffness (higher stiffness -> more energy stored)
-        # - bow thickness (thicker bow -> more force)
-        # - bow curvature (more curve -> more energy stored)
-        # - inversely related to grip width (narrower grip -> more focused energy transfer)
+        """Estimate arrow launch speed based on bow parameters.
         
-        base_speed = 3.0  # m/s (baseline speed)
-        
-        grip_factor = 25.0 / grip_width  # Narrower grip increases speed (normalized to default 25mm)
-        
-        estimated_speed = (
-            base_speed * 
-            (bow_thickness / 5.0) * 
-            (1 + bow_curvature) * 
-            limb_stiffness *
-            (grip_factor ** 0.3)  # Apply grip factor with dampened effect
-        )
+        Energy is transferred to the arrow in the form of work (force * distance) over a distance of 1 mm. 
+        Then, by the work-energy theorem, the launch speed of the arrow (in m/s) is given by sqrt(v^2 + 2W/M), where:
+        v: velocity before work is applied (m/s)
+        W: work (Joules)
+        M: mass of arrow (kg)
+
+        Since the arrow is at rest before work is applied, v = 0 and the equation simplifies to sqrt(2W/M).
+
+        Curious to see the resultant estimated distance? See https://www.omnicalculator.com/physics/projectile-motion
+
+        Equation source: https://study.com/skill/learn/how-to-use-the-work-energy-theorem-to-calculate-the-final-velocity-of-an-object-explanation.html
+        """
+        distance_arrow_is_pushed = co.DEFAULT_DISTANCE_ARROW_PUSHED / 1000  # in m
+        force = self.estimate_draw_force(bow_thickness, bow_curvature, limb_stiffness, grip_width)  # in N
+        work = force * distance_arrow_is_pushed  # in J
+        mass_of_arrow = co.DEFAULT_ARROW_WEIGHT / 1000  # in kg
+        estimated_speed = math.sqrt(2 * work / mass_of_arrow)  # in m/s
         
         return estimated_speed
-    
-    # TODO: Need more precise calculation for force
+
     def estimate_draw_force(self, bow_thickness, bow_curvature, limb_stiffness, grip_width):
-        """Estimate force required to fully draw the bow"""
-        # Simple model for draw force:
-        # - Proportional to thickness, stiffness
-        # - Inversely proportional to flexibility
-        # - Wider grip increases required force
+        """Estimate force required to fully draw the bow.
         
-        base_force = 4.0  # N (baseline force)
-        
-        grip_factor = grip_width / 25.0  # Wider grip increases required force
-        
-        estimated_force = (
-            base_force * 
-            (bow_thickness / 5.0) * 
-            (1 + 0.5 * bow_curvature) * 
-            limb_stiffness *
-            (grip_factor ** 0.5)  # Apply grip factor with square root to dampen effect
-            )
+        The force required to deflect a single cantilever beam (in the direction of the force) is given by 3DEI/(L^3), where:
+        D: deflection/distance moved (mm)
+        E: Young's modulus (dependent on material properties) (N/mm^2)
+        I: area moment of inertia, which for a rectangular beam with a cross section of dimensions b * h, is given by b(h^3)/12 (mm^4)
+        L: length of the beam (mm)
+
+        For 2 * 10 = 20 beams, the total force is given by 60DEI/(L^3).
+        """
+        deflection = co.DEFAULT_DEFLECTION
+        youngs_modulus = co.DEFAULT_YOUNGS_MODULUS  # E for PLA at infill density of 100% and layer height of 0.20 mm
+        beam_thickness = co.DEFAULT_BEAM_THICKNESS
+        moment_of_inertia = bow_thickness * (beam_thickness ** 3) / 12
+
+        height_difference_between_beam_ends = co.DEFAULT_HEIGHT_DIFFERENCE_BETWEEN_BEAM_ENDS  # in mm
+        beam_length = math.sqrt((grip_width ** 2) + (height_difference_between_beam_ends ** 2))
+
+        estimated_force = 60 * deflection * youngs_modulus * moment_of_inertia / (beam_length ** 3)
+
+        empirical_corrective_factor = co.DEFAULT_EMPIRICAL_CORRECTIVE_FACTOR  # we are doing more deformation than the original equation expects
+
+        estimated_force = estimated_force * empirical_corrective_factor
         
         return estimated_force
 
-    # UPDATE: Replace optimize_model with optimize_for_performance
-    # def optimize_model(self):
-    #     """Run optimization to find the best parameters for current user profile"""
-    #     # Get current user profile
-    #     current_profile = self.user_profiles[self.current_user]
-        
-    #     initial_guess = [
-    #         self.bow_thickness, 
-    #         self.bow_curvature, 
-    #         self.limb_stiffness,
-    #         self.grip_width
-    #     ]
-        
-    #     # Define bounds based on user profile
-    #     if self.current_user == 'Child':
-    #         bounds = [
-    #             (5.0, 7.0),     # bow_thickness
-    #             (0.2, 0.3),     # bow_curvature
-    #             (0.3, 0.5),     # limb_stiffness
-    #             (28.0, 32.0)    # grip_width - wider for children's hands
-    #         ]
-    #     elif self.current_user == 'Professional':
-    #         bounds = [
-    #             (4.0, 5.0),     # bow_thickness
-    #             (0.3, 0.4),     # bow_curvature
-    #             (0.7, 0.9),     # limb_stiffness
-    #             (20.0, 25.0)    # grip_width - narrower for precision
-    #         ]
-    #     else:  # Adult or default
-    #         bounds = [
-    #             (4.5, 5.5),     # bow_thickness
-    #             (0.25, 0.35),   # bow_curvature
-    #             (0.5, 0.7),     # limb_stiffness
-    #             (23.0, 28.0)    # grip_width - medium range
-    #         ]
-        
-    #     # Create an objective function that captures the profile
-    #     def obj_func(x):
-    #         return self.objective(x, current_profile)
-        
-    #     # Run optimization
-    #     result = minimize(obj_func, initial_guess, method='L-BFGS-B', bounds=bounds)
-        
-    #     # Apply small random variations to prevent identical results
-    #     random_factor = 0.03  # 3% random variation
-    #     bow_thickness = result.x[0] * (1 + (random.random() - 0.5) * 2 * random_factor)
-    #     bow_curvature = result.x[1] * (1 + (random.random() - 0.5) * 2 * random_factor)
-    #     limb_stiffness = result.x[2] * (1 + (random.random() - 0.5) * 2 * random_factor)
-    #     grip_width = result.x[3] * (1 + (random.random() - 0.5) * 2 * random_factor)
-        
-    #     # Keep within bounds
-    #     bow_thickness = max(bounds[0][0], min(bounds[0][1], bow_thickness))
-    #     bow_curvature = max(bounds[1][0], min(bounds[1][1], bow_curvature))
-    #     limb_stiffness = max(bounds[2][0], min(bounds[2][1], limb_stiffness))
-    #     grip_width = max(bounds[3][0], min(bounds[3][1], grip_width))
-        
-    #     # Calculate optimal arrow parameters based on bow parameters
-    #     arrow_length = self.calculate_optimal_arrow_length(bow_thickness, bow_curvature, grip_width)
-    #     arrow_weight = self.calculate_optimal_arrow_weight(limb_stiffness, grip_width)
-    #     tip_diameter = self.calculate_optimal_tip_diameter(limb_stiffness, grip_width)
-        
-    #     # Update all parameters
-    #     self.refresh_parameters(
-    #         bow_thickness, bow_curvature, limb_stiffness,
-    #         grip_width, arrow_length, arrow_weight, tip_diameter
-    #     )
-        
-    #     self.apply_geometry_update()
-
-    # UPDATE: Add a method to optimize for launch speed and draw force
+    # UPDATE: Added a method to optimize for launch speed and draw force
     def optimize_for_performance(self, target_speed, target_force, lock_speed=False, lock_force=False):
         """Optimize parameters to achieve target performance metrics"""
         print(f"Optimizing for - Speed: {target_speed} m/s (locked: {lock_speed}), Force: {target_force} N (locked: {lock_force})")
@@ -516,14 +464,14 @@ class BowArrowOptimizer:
             force_error = 0
             
             if lock_speed:
-                # UPDATE: Higher penalty for deviating from locked speed target to garentee user deminds
+                # UPDATE: Higher penalty for deviating from locked speed target to garentee user demands
                 speed_error = 100.0 * (launch_speed - target_speed)**2
             else:
                 # Softer penalty when speed isn't locked
                 speed_error = (launch_speed - target_speed)**2
                  
             if lock_force:
-                # UPDATE: Higher penalty for deviating from locked force target to garentee user deminds
+                # UPDATE: Higher penalty for deviating from locked force target to garentee user demands
                 force_error = 100.0 * (draw_force - target_force)**2
             else:
                 # Softer penalty when force isn't locked
@@ -534,8 +482,8 @@ class BowArrowOptimizer:
             
             # Calculate comfort based on physical parameters
             # Higher penalty for uncomfortable configurations
-            palm_factor = self.palm_size / 90.0
-            grip_width_ideal = 25.0 * palm_factor
+            palm_factor = self.palm_size / co.DEFAULT_PALM_SIZE
+            grip_width_ideal = co.DEFAULT_GRIP_WIDTH * palm_factor
             grip_comfort_penalty = 2.0 * ((grip_width - grip_width_ideal) / grip_width_ideal)**2
             
             # Total cost
@@ -553,10 +501,10 @@ class BowArrowOptimizer:
         
         # Define parameter bounds
         bounds = [
-            (4.0, 7.0),     # bow_thickness
-            (0.2, 0.4),     # bow_curvature
-            (0.3, 0.9),     # limb_stiffness
-            (20.0, 35.0)    # grip_width - full range
+            (co.MIN_BOW_THICKNESS, co.MAX_BOW_THICKNESS),     # bow_thickness
+            (co.MIN_BOW_CURVATURE, co.MAX_BOW_CURVATURE),     # bow_curvature
+            (co.MIN_LIMB_STIFFNESS, co.MAX_LIMB_STIFFNESS),     # limb_stiffness
+            (co.MIN_GRIP_WIDTH, co.MAX_GRIP_WIDTH)    # grip_width
         ]
         
         # Run optimization
@@ -566,7 +514,8 @@ class BowArrowOptimizer:
         bow_thickness, bow_curvature, limb_stiffness, grip_width = result.x
         
         # Calculate derived parameters (arrows, etc.)
-        arrow_length = self.calculate_optimal_arrow_length(bow_thickness, bow_curvature, grip_width)
+        # arrow_length = self.calculate_optimal_arrow_length(bow_thickness, bow_curvature, grip_width)
+        arrow_length = co.DEFAULT_ARROW_LENGTH  # Keep arrow length fixed to the existing self.arrow_len
         arrow_weight = self.calculate_optimal_arrow_weight(limb_stiffness, grip_width)
         tip_diameter = self.calculate_optimal_tip_diameter(limb_stiffness, grip_width)
         
@@ -594,67 +543,66 @@ class BowArrowOptimizer:
         
         print(f"Optimization complete - Speed: {optimized_speed:.2f} m/s, Force: {optimized_force:.2f} N")
         
-    # TODO: User can not directly change arrow so this need to rewrite to fit the size of the bow!
-    def calculate_optimal_arrow_length(self, bow_thickness, bow_curvature, grip_width):
-        """Adaptively calculate arrow length based on bow parameters and user needs"""
-        base_length = 60.0  # mm
+    def estimate_top_clamp_space(self):
+        """
+        Estimate the physical top-clamping space from the bow geometry.
+        (Assumes clamp spans 40–90mm depending on profile and stiffness)
+        """
+        if self.current_user == 'Child':
+            return 50.0 + (self.bow_thickness - 5.0) * 2  # more safety
+        elif self.current_user == 'Professional':
+            return 85.0 + (self.bow_curvature - 0.3) * 50
+        else:
+            return 70.0 + (self.limb_stiffness - 0.6) * 30
 
-        # More stiffness and curvature = faster release, so shorter arrow improves stability
-        stiffness_factor = 1.0 - (self.limb_stiffness - 0.6) * 0.3  # slightly shorter for stiffer bows
-        curvature_factor = 1.0 - (bow_curvature - 0.3) * 0.4        # shorten with high curvature
-        thickness_factor = 1.0 + (bow_thickness - 5.0) * 0.05       # thicker bow = slightly longer arrow
+    # # Check the bounding and make sure that the arrow length stays within the bow's limits
+    # def calculate_optimal_arrow_length(self, bow_thickness, bow_curvature, grip_width):
+    #     """Adaptively calculate arrow length based on bow parameters and user needs"""
+    #     base_length = 60.0  # mm
+
+    #     # More stiffness and curvature = faster release, so shorter arrow improves stability
+    #     stiffness_factor = 1.0 - (self.limb_stiffness - 0.6) * 0.3  # slightly shorter for stiffer bows
+    #     curvature_factor = 1.0 - (bow_curvature - 0.3) * 0.4        # shorten with high curvature
+    #     thickness_factor = 1.0 + (bow_thickness - 5.0) * 0.05       # thicker bow = slightly longer arrow
         
-        # Add grip width influence - wider grip needs slightly longer arrow for stability
-        grip_factor = 1.0 + (grip_width - 25.0) * 0.01
+    #     # Add grip width influence - wider grip needs slightly longer arrow for stability
+    #     grip_factor = 1.0 + (grip_width - 25.0) * 0.01
 
-        # User profile adjustment
-        profile_factor = {
-            'Child': 0.9,
-            'Adult': 1.0,
-            'Professional': 1.1
-        }.get(self.current_user, 1.0)
+    #     # User profile adjustment
+    #     profile_factor = {
+    #         'Child': 0.9,
+    #         'Adult': 1.0,
+    #         'Professional': 1.1
+    #     }.get(self.current_user, 1.0)
 
-        length = base_length * stiffness_factor * curvature_factor * thickness_factor * profile_factor * grip_factor
-        return max(45.0, min(length, 80.0))  # clamp between 45mm and 80mm
+    #     length = base_length * stiffness_factor * curvature_factor * thickness_factor * profile_factor * grip_factor
+    #     return max(co.MIN_ARROW_LENGTH, min(length, co.MAX_ARROW_LENGTH))  # clamp between 45mm and 80mm
+    
     def calculate_optimal_arrow_weight(self, limb_stiffness, grip_width):
-        """Compute arrow weight based on bow's stiffness, grip width, and user profile"""
+        """Simplified arrow weight based on bow stiffness and thickness"""
         base_weight = 2.0  # g
-
-        stiffness_factor = 1.0 + (limb_stiffness - 0.6) * 0.6  # stiffer bow = heavier arrow
-        length_factor = self.arrow_length / 60.0               # scale weight with arrow length
-        
-        # Add grip width influence - wider grip generally works better with slightly heavier arrows
-        grip_factor = 1.0 + (grip_width - 25.0) * 0.008
-
+        stiffness_factor = 1.0 + (limb_stiffness - 0.6) * 0.6
+        thickness_factor = 1.0 + (self.bow_thickness - 5.0) * 0.1
         profile_factor = {
-            'Child': 0.85,
+            'Child': 0.8,
             'Adult': 1.0,
-            'Professional': 1.2
+            'Professional': 1.25
         }.get(self.current_user, 1.0)
-
-        weight = base_weight * stiffness_factor * length_factor * profile_factor * grip_factor
-        return round(weight, 2)
+        return round(base_weight * stiffness_factor * thickness_factor * profile_factor, 2)
+    
     def calculate_optimal_tip_diameter(self, limb_stiffness, grip_width):
-        """Determine tip diameter based on stiffness, grip width, and safety"""
-        base_diameter = 8.0  # mm
-
-        # Heavier or faster bows = smaller, sharper tips (unless user is child)
+        """Tip diameter based on bow stiffness and thickness"""
+        base_diameter = co.DEFAULT_ARROW_TIP_DIAMETER
         stiffness_factor = 1.0 - (limb_stiffness - 0.6) * 0.4
-        curvature_penalty = 1.0 if self.bow_curvature < 0.33 else 0.95
-        
-        # Add grip width influence - wider grip needs larger tip for stability
-        grip_factor = 1.0 + (grip_width - 25.0) * 0.01
-
+        thickness_factor = 1.0 - (self.bow_thickness - 5.0) * 0.04
         profile_factor = {
             'Child': 1.3,
             'Adult': 1.0,
-            'Professional': 0.8
+            'Professional': 0.85
         }.get(self.current_user, 1.0)
+        diameter = base_diameter * stiffness_factor * thickness_factor * profile_factor
+        return round(min(max(diameter, 4.0), 12.0), 2)
 
-        diameter = base_diameter * stiffness_factor * curvature_penalty * profile_factor * grip_factor
-        return round(min(max(diameter, 4.0), 12.0), 2)  # clamp to safe bounds
-
-    # TODO: Need more reasonable calculation of performance scores
     def simulate_performance(self):
         """Simulate bow and arrow performance with current parameters"""
         # Calculate key performance metrics
@@ -703,7 +651,7 @@ class BowArrowOptimizer:
             tip_size_factor = self.tip_diameter / 10.0  # Relative to child-safe 10mm
         else:
             safety_threshold = 4.0  # m/s
-            tip_size_factor = self.tip_diameter / 8.0  # Relative to standard 8mm
+            tip_size_factor = self.tip_diameter / co.DEFAULT_ARROW_TIP_DIAMETER  # Relative to standard 8mm
                 
         safety_score = 100 - max(0, (launch_speed - safety_threshold) * 20)
         safety_score = safety_score * tip_size_factor

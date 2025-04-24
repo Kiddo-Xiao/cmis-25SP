@@ -1,11 +1,11 @@
 === 3D Print Settings Log ===
-User Type: Adult
-Limb Stiffness: 0.83
-Bow Thickness: 6.99 mm
-Bow Curvature: 0.38
-Arrow Weight: 2.35 g
-Material: Nylon or PETG
-Layer Height: 0.12mm
-Infill: 30%
-Supports: Yes
-Instructions: Print bow at 45° angle for better layer adhesion and strength
+User Type: Child
+Limb Stiffness: 0.32
+Bow Thickness: 6.00 mm
+Bow Curvature: 0.25
+Arrow Weight: 1.46 g
+Material: PLA or TPU
+Layer Height: 0.16mm
+Infill: 25%
+Supports: No
+Instructions: Print bow limbs with TPU for extra flexibility and safety

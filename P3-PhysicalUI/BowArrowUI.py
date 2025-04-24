@@ -9,6 +9,7 @@ from PyQt5.QtGui import QPixmap, QImage
 import pyqtgraph.opengl as gl
 import numpy as np
 from BowArrowOpt import BowArrowOptimizer
+import Constants as co
 
 class BowArrowUI(QMainWindow):
     def __init__(self, model_path):
@@ -24,10 +25,7 @@ class BowArrowUI(QMainWindow):
         
         # Setup UI components
         self.setup_ui()
-
-        # Set performance range based on physical constraints
-        self.update_performance_range()
-
+        
         # Initialize viewer with model
         self.update_model_view()
         
@@ -37,11 +35,11 @@ class BowArrowUI(QMainWindow):
         on the physical calculations in the optimizer, for example: when we change our mathematical 
         methods to calculate the launch speed(or draw force), the min/max values might not be gotten
         if here we just naively use the min/max values of the bow's physical parameters '''
-        min_speed = self.optimizer.estimate_launch_speed(4.0, 0.2, 0.3, 35)  # Minimum parameters
-        max_speed = self.optimizer.estimate_launch_speed(7.0, 0.4, 0.9, 20)  # Maximum parameters
+        min_speed = self.optimizer.estimate_launch_speed(co.MIN_BOW_THICKNESS, co.MIN_BOW_CURVATURE, co.MIN_LIMB_STIFFNESS, co.MAX_GRIP_WIDTH)
+        max_speed = self.optimizer.estimate_launch_speed(co.MAX_BOW_THICKNESS, co.MAX_BOW_CURVATURE, co.MAX_LIMB_STIFFNESS, co.MIN_GRIP_WIDTH)
         
-        min_force = self.optimizer.estimate_draw_force(4.0, 0.2, 0.3, 20)    # Minimum parameters
-        max_force = self.optimizer.estimate_draw_force(7.0, 0.4, 0.9, 35)    # Maximum parameters
+        min_force = self.optimizer.estimate_draw_force(co.MIN_BOW_THICKNESS, co.MIN_BOW_CURVATURE, co.MIN_LIMB_STIFFNESS, co.MAX_GRIP_WIDTH)
+        max_force = self.optimizer.estimate_draw_force(co.MAX_BOW_THICKNESS, co.MAX_BOW_CURVATURE, co.MAX_LIMB_STIFFNESS, co.MIN_GRIP_WIDTH)
         
         # Add 10% margin on each side
         min_speed = min_speed * 0.9
@@ -51,28 +49,28 @@ class BowArrowUI(QMainWindow):
         max_force = max_force * 1.1
         
         # Update slider ranges
-        self.launch_speed_slider.setRange(int(min_speed * 10), int(max_speed * 10))
-        self.draw_force_slider.setRange(int(min_force * 10), int(max_force * 10))
+        self.launch_speed_slider.setRange(int(min_speed * co.SLIDER_SCALE), int(max_speed * co.SLIDER_SCALE))
+        self.draw_force_slider.setRange(int(min_force * co.SLIDER_SCALE), int(max_force * co.SLIDER_SCALE))
         
         # Log the available ranges
         print(f"Performance ranges: Speed {min_speed:.1f}-{max_speed:.1f} m/s, Force {min_force:.1f}-{max_force:.1f} N")
 
     def update_launch_speed_label(self):
         """Update the label showing target launch speed value"""
-        value = self.launch_speed_slider.value() / 10.0  # Convert from scaled int
+        value = self.launch_speed_slider.value() / co.SLIDER_SCALE  # Convert from scaled int
         self.launch_speed_target_label.setText(f"{value:.1f} m/s")
         
     def update_draw_force_label(self):
         """Update the label showing target draw force value"""
-        value = self.draw_force_slider.value() / 10.0  # Convert from scaled int
+        value = self.draw_force_slider.value() / co.SLIDER_SCALE  # Convert from scaled int
         self.draw_force_target_label.setText(f"{value:.1f} N")
         
     def optimize_performance(self):
         """Optimize physical parameters to achieve specified performance targets"""
         try:
             # Get targets from sliders
-            target_speed = self.launch_speed_slider.value() / 10.0
-            target_force = self.draw_force_slider.value() / 10.0
+            target_speed = self.launch_speed_slider.value() / co.SLIDER_SCALE
+            target_force = self.draw_force_slider.value() / co.SLIDER_SCALE
             
             # Get lock states
             lock_speed = self.lock_speed_checkbox.isChecked()
@@ -123,7 +121,7 @@ class BowArrowUI(QMainWindow):
         config_tab = QWidget()
         results_tab = QWidget()
         tab_widget.addTab(config_tab, "Configure")
-        tab_widget.addTab(results_tab, "Results")
+        tab_widget.addTab(results_tab, "Optimize/Export")
         
         # First tab: Setup configure tab
         config_layout = QVBoxLayout(config_tab)
@@ -139,8 +137,8 @@ class BowArrowUI(QMainWindow):
         
         # Palm size
         self.palm_size_spin = QDoubleSpinBox()
-        self.palm_size_spin.setRange(50, 150)
-        self.palm_size_spin.setValue(90)
+        self.palm_size_spin.setRange(co.MIN_PALM_SIZE, co.MAX_PALM_SIZE)
+        self.palm_size_spin.setValue(co.DEFAULT_PALM_SIZE)
         self.palm_size_spin.setSuffix(" mm")
         profile_form.addRow("Palm Size:", self.palm_size_spin)
         
@@ -163,31 +161,31 @@ class BowArrowUI(QMainWindow):
         
         # Bow thickness
         self.thickness_spin = QDoubleSpinBox()
-        self.thickness_spin.setRange(4.0, 9.0)
-        self.thickness_spin.setValue(5.0)
-        self.thickness_spin.setSingleStep(0.5)
+        self.thickness_spin.setRange(co.MIN_BOW_THICKNESS, co.MAX_BOW_THICKNESS)
+        self.thickness_spin.setValue(co.DEFAULT_BOW_THICKNESS)
+        self.thickness_spin.setSingleStep(co.SINGLE_STEP_DISTANCE)
         self.thickness_spin.setSuffix(" mm")
         params_form.addRow("Bow Thickness:", self.thickness_spin)
         
         # UPDATE: hide Bow curvature
         self.curvature_spin = QDoubleSpinBox()
-        self.curvature_spin.setRange(0.2, 0.4)
-        self.curvature_spin.setValue(0.3)
-        self.curvature_spin.setSingleStep(0.01)
+        self.curvature_spin.setRange(co.MIN_BOW_CURVATURE, co.MAX_BOW_CURVATURE)
+        self.curvature_spin.setValue(co.DEFAULT_BOW_CURVATURE)
+        self.curvature_spin.setSingleStep(co.SINGLE_STEP_CURVATURE)
         params_form.addRow("Bow Curvature:", self.curvature_spin)
       
         # Limb stiffness
         self.stiffness_spin = QDoubleSpinBox()
-        self.stiffness_spin.setRange(0.3, 0.9)
-        self.stiffness_spin.setValue(0.6)
-        self.stiffness_spin.setSingleStep(0.05)
+        self.stiffness_spin.setRange(co.MIN_LIMB_STIFFNESS, co.MAX_LIMB_STIFFNESS)
+        self.stiffness_spin.setValue(co.DEFAULT_LIMB_STIFFNESS)
+        self.stiffness_spin.setSingleStep(co.SINGLE_STEP_STIFFNESS)
         params_form.addRow("Limb Stiffness:", self.stiffness_spin)
         
         # Grip width
         self.grip_width_spin = QDoubleSpinBox()
-        self.grip_width_spin.setRange(20.0, 35.0)
-        self.grip_width_spin.setValue(25.0)
-        self.grip_width_spin.setSingleStep(0.5)
+        self.grip_width_spin.setRange(co.MIN_GRIP_WIDTH, co.MAX_GRIP_WIDTH)
+        self.grip_width_spin.setValue(co.DEFAULT_GRIP_WIDTH)
+        self.grip_width_spin.setSingleStep(co.SINGLE_STEP_DISTANCE)
         self.grip_width_spin.setSuffix(" mm")
         params_form.addRow("Grip Width:", self.grip_width_spin)
         
@@ -198,15 +196,10 @@ class BowArrowUI(QMainWindow):
         apply_params_btn.clicked.connect(self.apply_parameters)
         config_layout.addWidget(apply_params_btn)
         
-        # UPDATE: more reasonable UI layout
-        # Add simulate button
-        simulate_btn = QPushButton("Simulate Performance")
-        simulate_btn.clicked.connect(self.simulate_performance)
-        config_layout.addWidget(simulate_btn)
-        # # Optimize button
-        # optimize_btn = QPushButton("Optimize Design")
-        # optimize_btn.clicked.connect(self.optimize_design)
-        # config_layout.addWidget(optimize_btn)
+        # Optimize button
+        optimize_btn = QPushButton("Optimize Design")
+        optimize_btn.clicked.connect(self.optimize_design)
+        config_layout.addWidget(optimize_btn)
 
        # Second tab: Setup results tab
         results_layout = QVBoxLayout(results_tab)
@@ -241,18 +234,18 @@ class BowArrowUI(QMainWindow):
 
         # Launch speed slider and display
         self.launch_speed_slider = QSlider(Qt.Horizontal)
-        self.launch_speed_slider.setRange(10, 50)  # 1.0 to 5.0 m/s (scaled by 10)
-        self.launch_speed_slider.setValue(30)      # Default 3.0 m/s
-        self.launch_speed_target_label = QLabel("3.0 m/s")
+        self.launch_speed_slider.setRange(int(co.MIN_LAUNCH_SPEED * co.SLIDER_SCALE), int(co.MAX_LAUNCH_SPEED * co.SLIDER_SCALE))
+        self.launch_speed_slider.setValue(int(co.DEFAULT_LAUNCH_SPEED * co.SLIDER_SCALE))
+        self.launch_speed_target_label = QLabel(f"{co.DEFAULT_LAUNCH_SPEED:.1f} m/s")
         self.launch_speed_slider.valueChanged.connect(self.update_launch_speed_label)
         targets_form.addRow("Target Launch Speed:", self.launch_speed_slider)
         targets_form.addRow("", self.launch_speed_target_label)
 
         # Draw force slider and display
         self.draw_force_slider = QSlider(Qt.Horizontal)
-        self.draw_force_slider.setRange(20, 70)    # 2.0 to 7.0 N (scaled by 10)
-        self.draw_force_slider.setValue(40)        # Default 4.0 N
-        self.draw_force_target_label = QLabel("4.0 N")
+        self.draw_force_slider.setRange(int(co.MIN_DRAW_FORCE * co.SLIDER_SCALE), int(co.MAX_DRAW_FORCE * co.SLIDER_SCALE))
+        self.draw_force_slider.setValue(int(co.DEFAULT_DRAW_FORCE * co.SLIDER_SCALE))
+        self.draw_force_target_label = QLabel(f"{co.DEFAULT_DRAW_FORCE:.1f} N")
         self.draw_force_slider.valueChanged.connect(self.update_draw_force_label)
         targets_form.addRow("Target Draw Force:", self.draw_force_slider)
         targets_form.addRow("", self.draw_force_target_label)
@@ -283,6 +276,11 @@ class BowArrowUI(QMainWindow):
         export_layout.addWidget(export_stl_btn)
         
         results_layout.addWidget(export_group)
+        
+        # Add simulate button
+        simulate_btn = QPushButton("Simulate Performance")
+        simulate_btn.clicked.connect(self.simulate_performance)
+        results_layout.addWidget(simulate_btn)
         
         # Setup 3D view in right panel
         view_label = QLabel("3D Model View")
@@ -351,18 +349,23 @@ class BowArrowUI(QMainWindow):
         QMessageBox.information(self, "Parameters Applied", 
                               "Parameters have been applied to the model.")
     
-    # def optimize_design(self):
-    #     """Run the optimization algorithm"""
-    #     try:
-    #         self.optimizer.optimize_model()
-    #         self.update_parameter_displays()
-    #         self.update_model_view()
-    #         self.simulate_performance()  # Update performance metrics
-    #         QMessageBox.information(self, "Optimization Complete", 
-    #                               "Model has been optimized for the current profile.")
-    #     except Exception as e:
-    #         QMessageBox.critical(self, "Optimization Error", 
-    #                            f"Failed to optimize model: {str(e)}")
+    def optimize_design(self):
+        """Run the optimization algorithm"""
+        try:
+            # self.optimizer.optimize_model()
+            # Fix: Use optimize_for_performance instead of optimize_model
+            target_speed = self.optimizer.user_profiles[self.optimizer.current_user]['max_launch_speed']
+            target_force = self.optimizer.user_profiles[self.optimizer.current_user]['max_draw_force']
+            self.optimizer.optimize_for_performance(target_speed, target_force, lock_speed=True, lock_force=True)
+
+            self.update_parameter_displays()
+            self.update_model_view()
+            self.simulate_performance()  # Update performance metrics
+            QMessageBox.information(self, "Optimization Complete", 
+                                  "Model has been optimized for the current profile.")
+        except Exception as e:
+            QMessageBox.critical(self, "Optimization Error", 
+                               f"Failed to optimize model: {str(e)}")
     
     def update_parameter_displays(self):
         """Update UI elements with current optimizer parameters"""
@@ -385,15 +388,15 @@ class BowArrowUI(QMainWindow):
             self.overall_label.setText(f"{results['performance_score']:.1f}")
             
             # Update sliders to match current performance values (added)
-            self.launch_speed_slider.setValue(int(results['launch_speed'] * 10))
-            self.draw_force_slider.setValue(int(results['draw_force'] * 10))
+            self.launch_speed_slider.setValue(int(results['launch_speed'] * co.SLIDER_SCALE))
+            self.draw_force_slider.setValue(int(results['draw_force'] * co.SLIDER_SCALE))
             
             QMessageBox.information(self, "Simulation Complete", 
-                                f"Overall Performance Score: {results['performance_score']:.1f}/100")
+                                  f"Overall Performance Score: {results['performance_score']:.1f}/100")
         except Exception as e:
             QMessageBox.critical(self, "Simulation Error", 
-                            f"Failed to simulate performance: {str(e)}")
-            
+                               f"Failed to simulate performance: {str(e)}")
+    
     def export_stl(self):
         """Export the current model to STL file"""
         try:
@@ -472,7 +475,8 @@ def main():
     os.makedirs("models", exist_ok=True)
     
     # Check if model file exists
-    model_path = 'models/Bow.stl'
+    # model_path = 'models/Bow.stl'
+    model_path = 'models/Bow_Arrow_Combined.stl'
     # model_path = 'models/Bow_Arrow_Combined.stl'
     if not os.path.exists(model_path):
         print(f"Warning: Model file not found at {model_path}")

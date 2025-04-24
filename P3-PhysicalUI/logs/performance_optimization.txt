@@ -1,6 +1,6 @@
 === Performance Optimization Results ===
-Target Launch Speed: 5.00 m/s (locked: True)
-Target Draw Force: 5.20 N (locked: False)
-Achieved Launch Speed: 5.00 m/s
-Achieved Draw Force: 5.23 N
-Parameters - Thickness: 6.99 mm, Curvature: 0.38, Stiffness: 0.83, Grip Width: 22.22 mm
+Target Launch Speed: 2.90 m/s (locked: True)
+Target Draw Force: 16.30 N (locked: False)
+Achieved Launch Speed: 3.26 m/s
+Achieved Draw Force: 5.31 N
+Parameters - Thickness: 6.00 mm, Curvature: 0.25, Stiffness: 0.32, Grip Width: 35.71 mm
